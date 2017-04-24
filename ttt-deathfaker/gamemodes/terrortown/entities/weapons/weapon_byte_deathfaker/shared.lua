@@ -68,7 +68,7 @@ if CLIENT then
     };	
 	
 	hook.Add("TTTScoreGroup", "sghookdeathfaker", function(p)
-		if p:GetNWBool("death_faked",false) and p:Alive() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
+		if p:GetNWBool("death_faked",false) and p:IsTerror() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
 			local client = LocalPlayer()
 			if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
 				return GROUP_TERROR -- Specs or Traitors will always see the through the fake
@@ -164,7 +164,7 @@ if SERVER then
 					ply:SetNWBool("death_faked", false)
 					ent:Remove() -- remove the fake corpse
 					timer.Simple(0, function() -- make shure its really the next tick
-						if ply:Alive() then
+						if ply:IsTerror() then
 							ply:Kill() -- leaves an ugly death message but this is our last resort
 						end
 					end
@@ -409,6 +409,7 @@ function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 			ply.bought = bought
 			ply:SetHealth(hp)
 			ply:SetNWBool("body_found", bodyfound)
+			ply:SetCustomCollisionCheck(false)
 			
 			-- remove the fake corpse
 			ply.fake_corpse:Remove()
