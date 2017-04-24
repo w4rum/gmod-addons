@@ -70,73 +70,19 @@ if CLIENT then
       type  = "item_weapon",
       name  = "Death Faker",
       desc  = "Turn yourself into a fake corpse!\nLMB for faking, RMB for configuration,\nReload for revival.\nMade by w4rum."
-    };
+    };	
 	
-	timer.Create("scgrptimerdeathf",5,1, function()
-		function ScoreGroup(p) -- overwrite with a modified version of ScoreGroup
-		
-			if not IsValid(p) then return -1 end -- will not match any group panel
-			
-			if p:GetNWBool("death_faked",false) and p:Alive() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
-				local client = LocalPlayer()
-				if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
-					return GROUP_TERROR -- Specs or Traitors will always see the through the fake
-				elseif (p:GetNWBool("body_found", false)) then
-					return GROUP_FOUND -- Innos and Detes will interpret the corpse as a death confirmation
-				else
-					return GROUP_TERROR -- Innos and Detes will not know about the fake until it's found
-				end
+	hook.Add("TTTScoreGroup", "sghookdeathfaker", function(p)
+		if p:GetNWBool("death_faked",false) and p:IsTerror() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
+			local client = LocalPlayer()
+			if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
+				return GROUP_TERROR -- Specs or Traitors will always see the through the fake
+			elseif (p:GetNWBool("body_found", false)) then
+				return GROUP_FOUND -- Innos and Detes will interpret the corpse as a death confirmation
+			else
+				return GROUP_TERROR -- Innos and Detes will not know about the fake until it's found
 			end
-			
-			if p.was_resurrected then -- check for defibrillation, don't want to collide with that addon. Make sure to disable the override in the defib-addon
-				if LocalPlayer():Alive() then
-					if !LocalPlayer():IsActiveTraitor() then
-						return p.was_found and GROUP_FOUND or GROUP_TERROR
-					else
-						return GROUP_TERROR
-					end
-				end
-			end
-			if p.was_resurrected and LocalPlayer() == p then
-					return GROUP_TERROR
-			end
-			
-			if p:GetNWBool("death_faked",false) and p:Alive() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
-				local client = LocalPlayer()
-				if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
-					return GROUP_TERROR -- Specs or Traitors will always see the through the fake
-				elseif (p:GetNWBool("body_found", false)) then
-					return GROUP_FOUND -- Innos and Detes will interpret the corpse as a death confirmation
-				else
-					return GROUP_TERROR -- Innos and Detes will not know about the fake until it's found
-				end
-			end
-		   
-		   -- just copy the rest of the originial ScoreGroup and let the game run the usual way if none of the two addons did something
-		   if DetectiveMode() then
-			  if (p:IsSpec() and not p:Alive()) then
-				 if (p:GetNWBool("body_found", false)) then
-					return GROUP_FOUND
-				 else
-					local client = LocalPlayer()
-					-- To terrorists, missing players show as alive
-					if client:IsSpec() or
-					   client:IsActiveTraitor() or
-					   ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
-					   return GROUP_NOTFOUND
-					else
-					   return GROUP_TERROR
-					end
-				 end
-			  end
-		   end
-
-		   return p:IsTerror() and GROUP_TERROR or GROUP_SPEC
 		end
-	end)
-	
-	hook.Add("ScoreGroup", "sghookdeathfaker", function(p)
-		
 	end)
 	
 end
