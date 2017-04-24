@@ -1,0 +1,15 @@
+{
+	"title"		:	"TTT DeathFaker",
+	"type"		:	"weapon",
+	"tags"		:	["fun", "roleplay"],
+	"ignore"	:
+	[
+		"*.swp",
+		"*.old",
+		"*.png",
+		"*.svg",
+		"*.sh",
+		"*.jpg",
+		"*.gma"
+	]
+}
