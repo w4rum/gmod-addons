@@ -167,7 +167,7 @@ if SERVER then
 						if ply:IsTerror() then
 							ply:Kill() -- leaves an ugly death message but this is our last resort
 						end
-					end
+					end)
 				else
 					ply:TakeDamageInfo(dmginfo)
 				end
@@ -178,6 +178,28 @@ if SERVER then
 	hook.Add("EntityTakeDamage", "byte_corpsedmgcheck", transferDamage)
 end
 
+-- replace the fake corpse with a player's actual corpse when he's killed, disconnects, moves to spectator...
+hook.Add("TTTOnCorpseCreated", "DFReplaceFakeCorpseWithReal", function (rag, ply)
+	local ply = player.GetBySteamID(rag.sid)
+	if ply:GetNWBool("death_faked", false) then
+		-- Currently not working, corpse position is not being updated
+		--[[
+		print("before")
+		local ragPos = rag:GetPos()
+		local fakePos = ply.fake_corpse:GetPos()
+		print("rag (" .. ragPos.x .. ", " .. ragPos.y .. ", " .. ragPos.z ..")")
+		print("fake (" .. fakePos.x .. ", " .. fakePos.y .. ", " .. fakePos.z ..")")
+		rag:SetPos(ply.fake_corpse:GetPos() + vector_up)
+		print("after")
+		local ragPos = rag:GetPos()
+		local fakePos = ply.fake_corpse:GetPos()
+		print("rag (" .. ragPos.x .. ", " .. ragPos.y .. ", " .. ragPos.z ..")")
+		print("fake (" .. fakePos.x .. ", " .. fakePos.y .. ", " .. fakePos.z ..")")		ply.fake_corpse:Remove()
+		--]]
+		ply.fake_corpse:Remove()
+		ply:SetNWBool("death_faked", false)
+	end
+end)
 
 -- ######## SWEP Methods
 function SWEP:PrimaryAttack()
@@ -230,16 +252,14 @@ function SWEP:PrimaryAttack()
 		ply:ChatPrint("You have already placed the corpse!")
 	end
 end
-	
-if CLIENT then
-	local function PosInTable(tbl, item)
-		for i,v in ipairs(tbl) do
-			if (v == item) then
-				return i
-			end
+
+local function PosInTable(tbl, item)
+	for i,v in ipairs(tbl) do
+		if (v == item) then
+			return i
 		end
-		return false
 	end
+	return false
 end
 
 function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (death details)
@@ -380,6 +400,7 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 		end
 	end
 end
+
 
 function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 	local ply = self.Owner
