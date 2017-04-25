@@ -51,11 +51,6 @@ SWEP.Secondary.Delay		= 1.0
 SWEP.NoSights 				= true
 SWEP.AllowDrop 				= false
 
--- ######## Variables
-local fake_corpse = nil
-local rag_collide = CreateConVar("ttt_ragdoll_collide", "0") 	-- needed for the corpse creation
-local menu_open = false
-
 
 -- ######## CLIENT CODE
 if CLIENT then
@@ -70,75 +65,22 @@ if CLIENT then
       type  = "item_weapon",
       name  = "Death Faker",
       desc  = "Turn yourself into a fake corpse!\nLMB for faking, RMB for configuration,\nReload for revival.\nMade by w4rum."
-    };
+    };	
 	
-	timer.Create("scgrptimerdeathf",5,1, function()
-		function ScoreGroup(p) -- overwrite with a modified version of ScoreGroup
-		
-			if not IsValid(p) then return -1 end -- will not match any group panel
-			
-			if p:GetNWBool("death_faked",false) and p:Alive() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
-				local client = LocalPlayer()
-				if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
-					return GROUP_TERROR -- Specs or Traitors will always see the through the fake
-				elseif (p:GetNWBool("body_found", false)) then
-					return GROUP_FOUND -- Innos and Detes will interpret the corpse as a death confirmation
-				else
-					return GROUP_TERROR -- Innos and Detes will not know about the fake until it's found
-				end
+	hook.Add("TTTScoreGroup", "sghookdeathfaker", function(p)
+		if p:GetNWBool("death_faked",false) and p:IsTerror() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
+			local client = LocalPlayer()
+			if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
+				return GROUP_TERROR -- Specs or Traitors will always see the through the fake
+			elseif (p:GetNWBool("body_found", false)) then
+				return GROUP_FOUND -- Innos and Detes will interpret the corpse as a death confirmation
+			else
+				return GROUP_TERROR -- Innos and Detes will not know about the fake until it's found
 			end
-			
-			if p.was_resurrected then -- check for defibrillation, don't want to collide with that addon. Make sure to disable the override in the defib-addon
-				if LocalPlayer():Alive() then
-					if !LocalPlayer():IsActiveTraitor() then
-						return p.was_found and GROUP_FOUND or GROUP_TERROR
-					else
-						return GROUP_TERROR
-					end
-				end
-			end
-			if p.was_resurrected and LocalPlayer() == p then
-					return GROUP_TERROR
-			end
-			
-			if p:GetNWBool("death_faked",false) and p:Alive() then -- work the scoreboard in a different way if the death was faked and the real player is still alive
-				local client = LocalPlayer()
-				if client:IsSpec() or client:IsActiveTraitor() or ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
-					return GROUP_TERROR -- Specs or Traitors will always see the through the fake
-				elseif (p:GetNWBool("body_found", false)) then
-					return GROUP_FOUND -- Innos and Detes will interpret the corpse as a death confirmation
-				else
-					return GROUP_TERROR -- Innos and Detes will not know about the fake until it's found
-				end
-			end
-		   
-		   -- just copy the rest of the originial ScoreGroup and let the game run the usual way if none of the two addons did something
-		   if DetectiveMode() then
-			  if (p:IsSpec() and not p:Alive()) then
-				 if (p:GetNWBool("body_found", false)) then
-					return GROUP_FOUND
-				 else
-					local client = LocalPlayer()
-					-- To terrorists, missing players show as alive
-					if client:IsSpec() or
-					   client:IsActiveTraitor() or
-					   ((GAMEMODE.round_state != ROUND_ACTIVE) and client:IsTerror()) then
-					   return GROUP_NOTFOUND
-					else
-					   return GROUP_TERROR
-					end
-				 end
-			  end
-		   end
-
-		   return p:IsTerror() and GROUP_TERROR or GROUP_SPEC
 		end
 	end)
-	
-	hook.Add("ScoreGroup", "sghookdeathfaker", function(p)
-		
-	end)
-	
+	-- ######## Clientside Variables
+	local menu_open = false
 end
 
 
@@ -148,14 +90,17 @@ if SERVER then
    AddCSLuaFile("shared.lua")
    util.AddNetworkString("deathfakerconfig")
    
-	function Unfake()
+	local function Unfake()
 		for i, j in pairs(player.GetAll()) do -- set death_faked to false for every player
-			j:SetNWBool("death_faked", false)
+			if j:GetNWBool("death_faked", false) then
+				j:SetNoDraw(false)
+				j:SetNWBool("death_faked", false)
+			end
 		end
 	end
 	hook.Add("TTTPrepareRound", "byte_unfake", Unfake) -- just hook this into the start of each round so that we don't have to do it manually
 	
-	function ResetConfigs()
+	local function ResetConfigs()
 		for i, j in pairs(player.GetAll()) do
 			j:SetNWInt("deathf_reason", DMG_FALL) -- default reason of death is fall
 			j:SetNWEntity("deathf_inflictor", game.GetWorld())
@@ -164,6 +109,14 @@ if SERVER then
 		end
 	end
 	hook.Add("TTTPrepareRound", "byte_deathfconfigreset", ResetConfigs) -- same as above
+	
+	local function DFPlayerDisconnected(p)
+		if p:GetNWBool("death_faked", false) then
+			ply.fake_corpse:Remove()
+		end
+	end
+	
+	hook.Add("PlayerDisconnected", "DFPlayerDisconnected", DFPlayerDisconnected)
 	
 	net.Receive("deathfakerconfig", function(length, client)
 		reason = net.ReadInt(32)
@@ -197,9 +150,10 @@ if SERVER then
 	end)
 	
 	-- function for transferring the damage done to the corpse onto the player
-	function transferDamage(ent, dmginfo, ply)
-		if (fake_corpse) then -- check for nil value
-			if (ent == fake_corpse) then
+	local function transferDamage(ent, dmginfo)
+		if ent.sid then -- check for nil value
+			local ply = player.GetBySteamID(ent.sid)
+			if IsValid(ply) and (ent == ply.fake_corpse) then
 				if (dmginfo:GetDamage() < 0) then
 					dmginfo:ScaleDamage(-1)
 				end
@@ -207,16 +161,45 @@ if SERVER then
 					dmginfo:SetDamage(1000) -- make sure it actually kills him, weird things can happen
 					ply:SetPos(ent:LocalToWorld(ent:OBBCenter()) + vector_up / 2) -- move the player back to the corpse
 					ply:TakeDamageInfo(dmginfo)
+					ply:SetNWBool("death_faked", false)
 					ent:Remove() -- remove the fake corpse
-					ply:Kill() -- leaves an ugly death message but this is our last resort
+					timer.Simple(0, function() -- make shure its really the next tick
+						if ply:IsTerror() then
+							ply:Kill() -- leaves an ugly death message but this is our last resort
+						end
+					end)
 				else
 					ply:TakeDamageInfo(dmginfo)
 				end
 			end
 		end
 	end
+	
+	hook.Add("EntityTakeDamage", "byte_corpsedmgcheck", transferDamage)
 end
 
+-- replace the fake corpse with a player's actual corpse when he's killed, disconnects, moves to spectator...
+hook.Add("TTTOnCorpseCreated", "DFReplaceFakeCorpseWithReal", function (rag, ply)
+	local ply = player.GetBySteamID(rag.sid)
+	if ply:GetNWBool("death_faked", false) then
+		-- Currently not working, corpse position is not being updated
+		--[[
+		print("before")
+		local ragPos = rag:GetPos()
+		local fakePos = ply.fake_corpse:GetPos()
+		print("rag (" .. ragPos.x .. ", " .. ragPos.y .. ", " .. ragPos.z ..")")
+		print("fake (" .. fakePos.x .. ", " .. fakePos.y .. ", " .. fakePos.z ..")")
+		rag:SetPos(ply.fake_corpse:GetPos() + vector_up)
+		print("after")
+		local ragPos = rag:GetPos()
+		local fakePos = ply.fake_corpse:GetPos()
+		print("rag (" .. ragPos.x .. ", " .. ragPos.y .. ", " .. ragPos.z ..")")
+		print("fake (" .. fakePos.x .. ", " .. fakePos.y .. ", " .. fakePos.z ..")")		ply.fake_corpse:Remove()
+		--]]
+		ply.fake_corpse:Remove()
+		ply:SetNWBool("death_faked", false)
+	end
+end)
 
 -- ######## SWEP Methods
 function SWEP:PrimaryAttack()
@@ -243,7 +226,7 @@ function SWEP:PrimaryAttack()
 			ply:ChatPrint("Press Reload to revive from the fake. That will delete the corpse but not reset your death status.")
 			ply:SetNWBool("death_faked", true)
 			
-			fake_corpse = CreateFakeCorpse(ply, fakedmg, fake_role)
+			ply.fake_corpse = CreateFakeCorpse(ply, fakedmg, fake_role)
 			
 			-- Transform the player into the fake corpse, dropping all his things
 			-- Drop all weapons (expect the Faker itself)
@@ -254,21 +237,29 @@ function SWEP:PrimaryAttack()
 				end
 			end
 			
-			ply:SpectateEntity(fake_corpse)
+			ply:SpectateEntity(ply.fake_corpse)
 			ply:SetObserverMode(OBS_MODE_CHASE)
 			ply:Flashlight(false)
 			ply:Extinguish()
-			ply:GodDisable()
-			ply:SetPos(Vector(-10000,-10000,-10000)) 	-- leeeeet's just hope this won't fuck shit up
-			ply:SetNWBool("disguised", true)			-- don't wanna be seen by curious detective radars
-			
-			hook.Add("EntityTakeDamage", "byte_corpsedmgcheck", function(ent, dmginfo)
-				transferDamage(ent, dmginfo, ply)
-			end)
+			--ply:GodDisable()
+			ply:SetNoDraw(true)
+			--ply:SetPos(Vector(-10000,-10000,-10000)) 	-- leeeeet's just hope this won't fuck shit up
+			ply:SetNWBool("disguised", true) -- don't wanna be seen by curious detective radars
+				
 		end
+		ply:SetCustomCollisionCheck(true)
 	else
 		ply:ChatPrint("You have already placed the corpse!")
 	end
+end
+
+local function PosInTable(tbl, item)
+	for i,v in ipairs(tbl) do
+		if (v == item) then
+			return i
+		end
+	end
+	return false
 end
 
 function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (death details)
@@ -410,6 +401,7 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 	end
 end
 
+
 function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 	local ply = self.Owner
 	if ply:GetNWBool("death_faked",false) then -- not able to stand back up before actually planting the fake
@@ -426,8 +418,9 @@ function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 			ply:SpawnForRound(false)
 			
 			-- move player back
-			ply:SetPos(fake_corpse:LocalToWorld(fake_corpse:OBBCenter()) + vector_up) -- revive a bit above the ground, don't wanna get stuck
-			ply:SetEyeAngles(Angle(0, fake_corpse:GetAngles().y, 0))
+			ply:SetNoDraw(false)
+			ply:SetPos(ply.fake_corpse:LocalToWorld(ply.fake_corpse:OBBCenter()) + vector_up) -- revive a bit above the ground, don't wanna get stuck
+			ply:SetEyeAngles(Angle(0, ply.fake_corpse:GetAngles().y, 0))
 			ply:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 			timer.Simple(2, function() ply:SetCollisionGroup(COLLISION_GROUP_PLAYER) end)
 			
@@ -437,9 +430,10 @@ function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 			ply.bought = bought
 			ply:SetHealth(hp)
 			ply:SetNWBool("body_found", bodyfound)
+			ply:SetCustomCollisionCheck(false)
 			
 			-- remove the fake corpse
-			fake_corpse:Remove()
+			ply.fake_corpse:Remove()
 			
 			-- disable the deathfaker-disguiser
 			ply:SetNWBool("disguised", false)
@@ -457,15 +451,6 @@ function SWEP:OnDrop() -- The Faker should only be used by the owner himself and
 	if SERVER then
 		self:Remove() 
 	end
-end
-
-function PosInTable(tbl, item)
-	for i,v in ipairs(tbl) do
-		if (v == item) then
-			return i
-		end
-	end
-	return false
 end
 
 -- ######## Additional functions
@@ -486,11 +471,12 @@ function CreateFakeCorpse(ply, dmginfo, role)  -- modified version of CORPSE.Cre
    rag:Activate()
 
    -- nonsolid to players, but can be picked up and shot
-   rag:SetCollisionGroup(rag_collide:GetBool() and COLLISION_GROUP_WEAPON or COLLISION_GROUP_DEBRIS_TRIGGER)
+   rag:SetCollisionGroup(GetConVar("ttt_ragdoll_collide"):GetBool() and COLLISION_GROUP_WEAPON or COLLISION_GROUP_DEBRIS_TRIGGER)
 
    -- flag this ragdoll as being a player's
    rag.player_ragdoll = true
    rag.uqid = ply:UniqueID()
+   rag.sid = ply:SteamID()
 
    -- network data
    CORPSE.SetPlayerNick(rag, ply)
@@ -550,3 +536,12 @@ function CreateFakeCorpse(ply, dmginfo, role)  -- modified version of CORPSE.Cre
 
    return rag -- we'll be speccing this
 end
+	
+local function DFShouldCollide( ent1, ent2 )
+    if ( ent1:IsPlayer() and ent1:GetNWBool("death_faked", false) ) then
+        return false
+    elseif ( ent2:IsPlayer() and ent2:GetNWBool("death_faked", false) ) then
+	return false
+    end
+end
+hook.Add( "ShouldCollide", "DFShouldCollide", DFShouldCollideplayer )
