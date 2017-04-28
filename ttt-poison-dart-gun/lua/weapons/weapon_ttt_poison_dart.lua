@@ -58,16 +58,6 @@ SWEP.Primary.Sound          = Sound( "Neurotoxin.TFlippy.Single" )
 SWEP.PrimaryAnim            = ACT_VM_PRIMARYATTACK_SILENCED
 SWEP.ReloadAnim             = ACT_VM_RELOAD_SILENCED
 
-local poisonInterval = 1
-local poisonDamage = 3
-local poisonTicks = 40
-
-if (SERVER) then
-    poisonInterval = CreateConVar("ttt_poisondart_interval", 1, {}, "The amount of seconds between each damage tick of the poison")
-    poisonDamage = CreateConVar("ttt_poisondart_damage", 3, {}, "The amount of damage each tick of the poison deals")
-    poisonTicks = CreateConVar("ttt_poisondart_ticks", 1, {}, "The amount of ticks the poison lasts before wearing off")
-end
-
 function SWEP:Deploy()
     self.Weapon:SendWeaponAnim(ACT_VM_DRAW_SILENCED)
     return true
@@ -90,7 +80,6 @@ end
 function SWEP:PrimaryAttack(worldsnd)
     self.Weapon:SetNextSecondaryFire( CurTime() + self.Primary.Delay )
     self.Weapon:SetNextPrimaryFire( CurTime() + self.Primary.Delay )
-
     if not self:CanPrimaryAttack() then return end
 
     self.Owner:LagCompensation(true)
@@ -107,8 +96,13 @@ function SWEP:PrimaryAttack(worldsnd)
 
     if SERVER then
         if self.Owner:GetEyeTrace().HitNonWorld and self.Owner:GetEyeTrace().Entity:IsPlayer() then
+            -- get fresh configuration
+            poisonInterval = CreateConVar("ttt_poisondart_interval", 1, {}, "The amount of seconds between each damage tick of the poison"):GetInt()
+            poisonDamage = CreateConVar("ttt_poisondart_damage", 3, {}, "The amount of damage each tick of the poison deals"):GetInt()
+            poisonTicks = CreateConVar("ttt_poisondart_ticks", 34, {}, "The amount of ticks the poison lasts before wearing off"):GetInt()
 
-            local victim = self.Owner:GetEyeTrace().Entity
+            --local victim = self.Owner:GetEyeTrace().Entity
+            local victim = self.Owner
             local uid = victim:UniqueID()
             victim:EmitSound("ambient/voices/citizen_beaten" .. math.random(1,5) .. ".wav",500,100)
 
@@ -120,18 +114,24 @@ function SWEP:PrimaryAttack(worldsnd)
             -- continuous poison damage
             victim:SetNWBool("poisondart_poisoned", true)
             local timerName = uid .. "poisondart"
-            timer.Create(timerName, poisonInterval, poisonTicks, function()
+            victim.poisonticksPassed = 0
+
+            victim.poisonDmgInfo = DamageInfo()
+            victim.poisonDmgInfo:SetDamage(poisonDamage)
+            if IsValid(self.Owner) then
+                victim.poisonDmgInfo:SetAttacker(self.Owner)
+            end
+            victim.poisonDmgInfo:SetInflictor(self)
+            victim.poisonDmgInfo:SetDamageType(DMG_NERVEGAS) -- DMG_POISON produces a bright flash that I couldn't scale down
+            victim.poisonDmgInfo:SetReportedPosition(victim:GetPos())
+
+            timer.Create(timerName, poisonInterval, 0, function()
                 
                 -- only run as long as victim is alive, stop timer otherwise
-                if IsValid(victim) and victim:IsTerror() then
-                    local dmginfo = DamageInfo()
-                    dmginfo:SetDamage(poisonDamage)
-                    if IsValid(self.Owner) then
-                        dmginfo:SetAttacker(self.Owner)
-                    end
-                    dmginfo:SetInflictor(self)
-                    dmginfo:SetDamageType(DMG_POISON)
-
+                local ticksPassed = victim.poisonticksPassed
+                if IsValid(victim) and victim:IsTerror() and victim:Alive() and (ticksPassed < poisonTicks) then
+                    victim:TakeDamageInfo(victim.poisonDmgInfo)
+                    victim.poisonticksPassed = victim.poisonticksPassed + 1
                 else
                     victim:SetNWBool("poisondart_poisoned", false)
                     timer.Destroy(timerName)
@@ -155,13 +155,35 @@ function SWEP:PrimaryAttack(worldsnd)
 
 end
 
+-- make the screen slightly yellow and blend some frames as a kind of "nausea" effect
 if CLIENT then
-    hook.Add("DrawOverlay", "poisondart_overlay", function()
-        if LocalPlayer:GetNWBool("poisondart_poisoned", false) then
-            DrawColorModify({ 
-                [ "$pp_colour_addr" ] = 0.02,
-                [ "$pp_colour_addg" ] = 0.02,
-        })
+    hook.Add("RenderScreenspaceEffects", "poisondart_ppeffects", function()
+        if LocalPlayer():GetNWBool("poisondart_poisoned", false) then
+            local colorModify = {
+	        [ "$pp_colour_addr" ] = 0.3,
+	        [ "$pp_colour_addg" ] = 0.3,
+	        [ "$pp_colour_addb" ] = 0,
+	        [ "$pp_colour_brightness" ] = 0,
+	        [ "$pp_colour_contrast" ] = 1,
+	        [ "$pp_colour_colour" ] = 1,
+	        [ "$pp_colour_mulr" ] = 0,
+	        [ "$pp_colour_mulg" ] = 0,
+                [ "$pp_colour_mulb" ] = 0
+            }
+            DrawColorModify(colorModify)
+            DrawMotionBlur(0.17, 0.65, 0.03)
         end
     end)
+
+    hook.Add("HUDShouldDraw", "poisondart_disablepoisonwarning", function(name)
+        if (name == "CHudPoisonDamageIndicator") then return false end
+    end)
 end
+
+-- remove any poison effects on player death
+if SERVER then
+    hook.Add("PostPlayerDeath", "poisondart_unpoison_on_death", function(ply, infl, att)
+        ply:SetNWBool("poisondart_poisoned", false)
+    end)
+end
+
