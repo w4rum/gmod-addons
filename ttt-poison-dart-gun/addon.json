@@ -1,0 +1,16 @@
+{
+	"title"		:	"TTT Poison Dart Gun",
+	"type"		:	"weapon",
+	"tags"		:	["fun", "roleplay"],
+	"ignore"	:
+	[
+		"*.swp",
+		"*.old",
+		"*.png",
+		"*.svg",
+		"*.sh",
+		"*.jpg",
+		"*.gma",
+		"*.md"
+	]
+}

@@ -155,11 +155,13 @@ function SWEP:PrimaryAttack(worldsnd)
 
 end
 
-hook.Add("DrawOverlay", "poisondart_overlay", function()
-    if LocalPlayer:GetNWBool("poisondart_poisoned", false) then
-        DrawColorModify({ 
-            [ "$pp_colour_addr" ] = 0.02,
-            [ "$pp_colour_addg" ] = 0.02,
-    })
-    end
-end)
+if CLIENT then
+    hook.Add("DrawOverlay", "poisondart_overlay", function()
+        if LocalPlayer:GetNWBool("poisondart_poisoned", false) then
+            DrawColorModify({ 
+                [ "$pp_colour_addr" ] = 0.02,
+                [ "$pp_colour_addg" ] = 0.02,
+        })
+        end
+    end)
+end
