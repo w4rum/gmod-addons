@@ -31,7 +31,7 @@ SWEP.Primary.Automatic      = false
 SWEP.Primary.SoundLevel     = 30
 
 if SERVER then
-    CreateConVar("ttt_poisondart_ammo", 1, { FCVAR_REPLICATED }, "The amount of ammo a player gets when first purchasing the poison dart gun.")
+    CreateConVar("ttt_poisondart_ammo", 1, { FCVAR_REPLICATED }, "The amount of ammo a player gets when first purchasing the poison dart gun")
 end
 local ammo = GetConVar("ttt_poisondart_ammo"):GetInt();
 SWEP.Primary.ClipSize       = 1
@@ -57,6 +57,12 @@ SWEP.Primary.Sound          = Sound( "Neurotoxin.TFlippy.Single" )
 
 SWEP.PrimaryAnim            = ACT_VM_PRIMARYATTACK_SILENCED
 SWEP.ReloadAnim             = ACT_VM_RELOAD_SILENCED
+
+if SERVER then
+    CreateConVar("ttt_poisondart_interval", 1, {}, "The amount of seconds between each damage tick of the poison"):GetInt()
+    CreateConVar("ttt_poisondart_damage", 3, {}, "The amount of damage each tick of the poison deals"):GetInt()
+    CreateConVar("ttt_poisondart_ticks", 34, {}, "The amount of ticks the poison lasts before wearing off"):GetInt()
+end
 
 function SWEP:Deploy()
     self.Weapon:SendWeaponAnim(ACT_VM_DRAW_SILENCED)
@@ -97,9 +103,9 @@ function SWEP:PrimaryAttack(worldsnd)
     if SERVER then
         if self.Owner:GetEyeTrace().HitNonWorld and self.Owner:GetEyeTrace().Entity:IsPlayer() then
             -- get fresh configuration
-            poisonInterval = CreateConVar("ttt_poisondart_interval", 1, {}, "The amount of seconds between each damage tick of the poison"):GetInt()
-            poisonDamage = CreateConVar("ttt_poisondart_damage", 3, {}, "The amount of damage each tick of the poison deals"):GetInt()
-            poisonTicks = CreateConVar("ttt_poisondart_ticks", 34, {}, "The amount of ticks the poison lasts before wearing off"):GetInt()
+            poisonInterval = GetConVar("ttt_poisondart_interval"):GetInt()
+            poisonDamage = GetConVar("ttt_poisondart_damage"):GetInt()
+            poisonTicks = GetConVar("ttt_poisondart_ticks"):GetInt()
 
             --local victim = self.Owner:GetEyeTrace().Entity
             local victim = self.Owner
