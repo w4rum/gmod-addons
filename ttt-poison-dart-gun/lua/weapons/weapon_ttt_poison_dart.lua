@@ -1,3 +1,7 @@
+if SERVER then
+    resource.addWorkshop("914980317")
+end
+
 AddCSLuaFile()
 
 if CLIENT then
