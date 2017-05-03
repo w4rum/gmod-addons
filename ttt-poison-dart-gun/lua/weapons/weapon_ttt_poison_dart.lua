@@ -1,5 +1,5 @@
 if SERVER then
-    resource.addWorkshop("914980317")
+    resource.AddWorkshop("914980317")
 end
 
 AddCSLuaFile()
@@ -34,9 +34,8 @@ SWEP.Primary.Recoil         = 4.50
 SWEP.Primary.Automatic      = false
 SWEP.Primary.SoundLevel     = 30
 
-if SERVER then
-    CreateConVar("ttt_poisondart_ammo", 1, { FCVAR_REPLICATED }, "The amount of ammo a player gets when first purchasing the poison dart gun")
-end
+CreateConVar("ttt_poisondart_ammo", 1, { FCVAR_REPLICATED, FCVAR_SERVER_CAN_EXECUTE, FCVAR_ARCHIVE }, "The amount of ammo a player gets when first purchasing the poison dart gun")
+
 local ammo = GetConVar("ttt_poisondart_ammo"):GetInt();
 SWEP.Primary.ClipSize       = 1
 SWEP.Primary.ClipMax        = ammo
