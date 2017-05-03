@@ -110,8 +110,7 @@ function SWEP:PrimaryAttack(worldsnd)
             poisonDamage = GetConVar("ttt_poisondart_damage"):GetInt()
             poisonTicks = GetConVar("ttt_poisondart_ticks"):GetInt()
 
-            --local victim = self.Owner:GetEyeTrace().Entity
-            local victim = self.Owner
+            local victim = self.Owner:GetEyeTrace().Entity
             local uid = victim:UniqueID()
             victim:EmitSound("ambient/voices/citizen_beaten" .. math.random(1,5) .. ".wav",500,100)
 
