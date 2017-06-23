@@ -1,8 +1,4 @@
-if SERVER then
-    resource.AddWorkshop("914980317")
-end
-
-AddCSLuaFile()
+AddCSLuaFile() -- send lua file to clients
 
 if CLIENT then
     SWEP.PrintName          = "Neurotoxin Gun"
@@ -131,6 +127,8 @@ function SWEP:PrimaryAttack(worldsnd)
             end
             victim.poisonDmgInfo:SetInflictor(self)
             victim.poisonDmgInfo:SetDamageType(DMG_NERVEGAS) -- DMG_POISON produces a bright flash that I couldn't scale down
+            -- reported position = red bar on the side of the screen shown upon taking damage
+            -- to hide the attacker's position on poison ticks, show victim position instead
             victim.poisonDmgInfo:SetReportedPosition(victim:GetPos())
 
             timer.Create(timerName, poisonInterval, 0, function()
@@ -183,6 +181,8 @@ if CLIENT then
         end
     end)
 
+    -- remove poison warning notification upon taking DMG_POISON damage
+    -- currently not doing anything as DMG_NERVEGAS is used instead
     hook.Add("HUDShouldDraw", "poisondart_disablepoisonwarning", function(name)
         if (name == "CHudPoisonDamageIndicator") then return false end
     end)
