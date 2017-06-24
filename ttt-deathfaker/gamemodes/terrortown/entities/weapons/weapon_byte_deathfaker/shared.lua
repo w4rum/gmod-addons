@@ -32,7 +32,7 @@ local weapon_codes = {
 -- ######## SWEP Configuration
 SWEP.HoldType 				= "slam"
 
-SWEP.Base 					= "weapon_tttbase"
+SWEP.Base 				= "weapon_tttbase"
 
 SWEP.ViewModel  			= Model("models/weapons/v_c4.mdl")
 SWEP.WorldModel 			= Model("models/weapons/w_c4.mdl")
@@ -43,23 +43,22 @@ SWEP.CanBuy 				= { ROLE_TRAITOR }
 SWEP.LimitedStock 			= true
 
 SWEP.WeaponID 				= WEAPON_BYTE_DEATHFAKER
-SWEP.Primary.ClipSize       = -1
-SWEP.Primary.DefaultClip    = -1
-SWEP.Primary.Ammo       	= "noammo"
+SWEP.Primary.ClipSize                   = -1
+SWEP.Primary.DefaultClip                = -1
+SWEP.Primary.Ammo       	        = "noammo"
 SWEP.Primary.Delay 			= 1.0
-SWEP.Secondary.Delay		= 1.0
+SWEP.Secondary.Delay		        = 1.0
 SWEP.NoSights 				= true
 SWEP.AllowDrop 				= false
 
 
 -- ######## CLIENT CODE
 if CLIENT then
-    SWEP.PrintName = "Death Faker"
-    SWEP.Slot      = 7 
+    SWEP.PrintName                      = "Death Faker"
+    SWEP.Slot                           = 7 
     
-    SWEP.ViewModelFOV  = 10
-   
-	SWEP.Icon = "vgui/ttt/icon_byte_deathfaker"
+    SWEP.ViewModelFOV                   = 10
+    SWEP.Icon                           = "vgui/ttt/icon_byte_deathfaker"
    
     SWEP.EquipMenuData = {
       type  = "item_weapon",
@@ -98,7 +97,7 @@ if SERVER then
 			end
 		end
 	end
-	hook.Add("TTTPrepareRound", "byte_unfake", Unfake) -- just hook this into the start of each round so that we don't have to do it manually
+	hook.Add("TTTPrepareRound", "ttt-deathfaker-unfake", Unfake) -- just hook this into the start of each round so that we don't have to do it manually
 	
 	local function ResetConfigs()
 		for i, j in pairs(player.GetAll()) do
@@ -108,7 +107,7 @@ if SERVER then
 			j:SetNWBool("deathf_innocent", true)
 		end
 	end
-	hook.Add("TTTPrepareRound", "byte_deathfconfigreset", ResetConfigs) -- same as above
+	hook.Add("TTTPrepareRound", "ttt-deathfaker-deathfconfigreset", ResetConfigs) -- same as above
 	
 	local function DFPlayerDisconnected(p)
 		if p:GetNWBool("death_faked", false) then
@@ -116,7 +115,7 @@ if SERVER then
 		end
 	end
 	
-	hook.Add("PlayerDisconnected", "DFPlayerDisconnected", DFPlayerDisconnected)
+	hook.Add("PlayerDisconnected", "ttt-deathfaker-player-disconnected", DFPlayerDisconnected)
 	
 	net.Receive("deathfakerconfig", function(length, client)
 		reason = net.ReadInt(32)
@@ -130,7 +129,7 @@ if SERVER then
 			inflEntity = game.GetWorld()
 		else
 			inflEntity = ents.Create(weapon)
-		end
+                    end
 		
 		
 		if (innorole == 1) then
@@ -163,7 +162,7 @@ if SERVER then
 					ply:TakeDamageInfo(dmginfo)
 					ply:SetNWBool("death_faked", false)
 					ent:Remove() -- remove the fake corpse
-					timer.Simple(0, function() -- make shure its really the next tick
+					timer.Simple(0, function() -- make sure its really the next tick
 						if ply:IsTerror() then
 							ply:Kill() -- leaves an ugly death message but this is our last resort
 						end
@@ -175,7 +174,7 @@ if SERVER then
 		end
 	end
 	
-	hook.Add("EntityTakeDamage", "byte_corpsedmgcheck", transferDamage)
+	hook.Add("EntityTakeDamage", "ttt-deathfaker-corpsedmgcheck", transferDamage)
 end
 
 -- replace the fake corpse with a player's actual corpse when he's killed, disconnects, moves to spectator...
@@ -243,11 +242,14 @@ function SWEP:PrimaryAttack()
 			ply:Extinguish()
 			--ply:GodDisable()
 			ply:SetNoDraw(true)
-			--ply:SetPos(Vector(-10000,-10000,-10000)) 	-- leeeeet's just hope this won't fuck shit up
-			ply:SetNWBool("disguised", true) -- don't wanna be seen by curious detective radars
+			ply:SetPos(Vector(-10000,-10000,-10000)) -- moving player out of the map to avoid being hit by bullets etc.
+                        -- This is a dirty workaround because not rendering in addition to disabling entity-entity-collision does not suffice.
+                        -- Unfortunately, this makes the player not hear the sound emitted near the corpse
+			ply:SetNWBool("disguised", true) -- don't wanna be seen by curious detectives' radars
 				
 		end
 		ply:SetCustomCollisionCheck(true)
+                ply:CollisionRulesChanged()
 	else
 		ply:ChatPrint("You have already placed the corpse!")
 	end
@@ -430,6 +432,7 @@ function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 			ply.bought = bought
 			ply:SetHealth(hp)
 			ply:SetNWBool("body_found", bodyfound)
+                        ply:SetNWBool("death_faked", false)
 			ply:SetCustomCollisionCheck(false)
 			
 			-- remove the fake corpse
@@ -437,6 +440,7 @@ function SWEP:Reload() -- Reload is for standing back up, deleting the fake
 			
 			-- disable the deathfaker-disguiser
 			ply:SetNWBool("disguised", false)
+
 			
 			-- finally, remove the Faker
 			self:Remove()
@@ -544,4 +548,5 @@ local function DFShouldCollide( ent1, ent2 )
 	return false
     end
 end
+
 hook.Add( "ShouldCollide", "DFShouldCollide", DFShouldCollideplayer )
