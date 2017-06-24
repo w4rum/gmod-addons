@@ -105,6 +105,7 @@ if SERVER then
 			j:SetNWEntity("deathf_inflictor", game.GetWorld())
 			j:SetNWBool("deathf_headshot", false)
 			j:SetNWBool("deathf_innocent", true)
+                        j:SetNWBool("deathf_scream", true)
 		end
 	end
 	hook.Add("TTTPrepareRound", "ttt-deathfaker-deathfconfigreset", ResetConfigs) -- same as above
@@ -122,30 +123,26 @@ if SERVER then
 		weapon = net.ReadString()
 		hsd = net.ReadBit()
 		innorole = net.ReadBit()
-		client:SetNWString("deathf_reason", reason)
+                scream = net.ReadBit()
+
 		local inflEntity = nil
 		
 		if (reason == DMG_FALL) or (reason == DMG_DIRECT) or (reason == DMG_BLAST) or (reason == DMG_DROWN) or (reason == DMG_CRUSH) then
 			inflEntity = game.GetWorld()
 		else
 			inflEntity = ents.Create(weapon)
-                    end
+                end
 		
+		-- convert int to bool
+		innorole = (innorole == 1)
+                hsd = (hsd == 1)
+                scream = (scream == 1)
 		
-		if (innorole == 1) then
-			innorole = true
-		else
-			innorole = false
-		end
-		if (hsd == 1 ) then
-			hsd = true
-		else
-			hsd = false
-		end
-		
+		client:SetNWString("deathf_reason", reason)
 		client:SetNWBool("deathf_headshot", hsd)
 		client:SetNWEntity("deathf_inflictor", inflEntity)
 		client:SetNWBool("deathf_innocent", innorole)
+                client:SetNWBool("deathf_scream", scream)
 	end)
 	
 	-- function for transferring the damage done to the corpse onto the player
@@ -207,9 +204,6 @@ function SWEP:PrimaryAttack()
 	if not ply:GetNWBool("death_faked",false) then
 			ply.server_ragdoll = nil
 		if (SERVER) then
-			if death_reason == DMG_FALL then 
-				death_inflictor = game.GetWorld()
-			end
 			local fakedmg = DamageInfo()
 			fakedmg:SetDamage(100)
 			fakedmg:SetDamageType(ply:GetNWInt("deathf_reason"))
@@ -222,9 +216,24 @@ function SWEP:PrimaryAttack()
 				fake_role = ROLE_TRAITOR
 			end
 			
-			ply:ChatPrint("Press Reload to revive from the fake. That will delete the corpse but not reset your death status.")
+			ply:ChatPrint("Press Reload to revive from the fake. This will delete the corpse but not reset your death status.")
 			ply:SetNWBool("death_faked", true)
 			
+                        -- play scream sound if option is activated
+                        if (ply:GetNWBool("deathf_scream", false)) then
+                            local deathsounds = {
+                               Sound("vo/npc/male01/pain07.wav"),
+                               Sound("vo/npc/male01/pain08.wav"),
+                               Sound("vo/npc/male01/pain09.wav"),
+                               Sound("vo/npc/male01/no02.wav"),
+                               Sound("hostage/hpain/hpain2.wav"),
+                               Sound("hostage/hpain/hpain3.wav"),
+                               Sound("hostage/hpain/hpain5.wav"),
+                               Sound("hostage/hpain/hpain6.wav")
+                            };
+                           sound.Play(table.Random(deathsounds), ply:GetShootPos(), 90, 100)
+                        end
+
 			ply.fake_corpse = CreateFakeCorpse(ply, fakedmg, fake_role)
 			
 			-- Transform the player into the fake corpse, dropping all his things
@@ -272,8 +281,10 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 			
 			-- Create the panel
 			local panel = vgui.Create("DFrame")
-			panel:SetPos(ScrW() / 2 - 110,ScrH() / 2 - 75) -- put it in the center
-			panel:SetSize(220,190)
+                        local panelWidth = 220
+                        local panelHeight = 200 
+			panel:SetPos((ScrW() - panelWidth) / 2, (ScrH() - panelHeight) / 2) -- put it in the center
+			panel:SetSize(panelWidth, panelHeight)
 			panel:SetTitle("Death Faker configuration")
 			panel:SetVisible(true)
 			panel:SetDraggable(true)
@@ -283,14 +294,14 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 			local submit = vgui.Create("DButton")
 			submit:SetParent(panel)
 			submit:SetText("Submit")
-			submit:SetPos(30,160)
+			submit:SetPos(30,170)
 			submit:SetSize(80,20)
 			
 			-- Create the abort button
 			local abort = vgui.Create("DButton")
 			abort:SetParent(panel)
 			abort:SetText("Abort")
-			abort:SetPos(110,160)
+			abort:SetPos(110,170)
 			abort:SetSize(80,20)
 			abort.DoClick = function()
 				menu_open = false
@@ -310,17 +321,25 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 			reasons:SetPos(10,70)
 			reasons:SetSize(200,30)
 			reasons:AddChoice("Fell from a significant height")		-- 1
-			reasons:AddChoice("Burned to death")					-- 2
+			reasons:AddChoice("Burned to death")			    	-- 2
 			reasons:AddChoice("Ripped apart by an explosion")		-- 3
-			reasons:AddChoice("Shot to death")						-- 4
-			reasons:AddChoice("Stabbed")							-- 5
-			reasons:AddChoice("Drowned")							-- 6
+			reasons:AddChoice("Shot to death")			        -- 4
+			reasons:AddChoice("Stabbed")					-- 5
+			reasons:AddChoice("Drowned")					-- 6
 			reasons:AddChoice("Crushed by a heavy object")			-- 7
 			reasons:SetValue("Fell from a significant height")
 			
+			-- Create the scream-checkbox
+			local scream = vgui.Create("DCheckBoxLabel", panel)
+			scream:SetPos(10,100)
+			scream:SetText("Scream")
+			scream:SetChecked(true)
+			scream:SetVisible(true)
+			scream:SizeToContents()
+
 			-- Create the list of weapons
 			local weapons = vgui.Create ("DComboBox", panel)
-			weapons:SetPos(10,110)
+			weapons:SetPos(10,120)
 			weapons:SetSize(200,30)
 			weapons:SetVisible(false)			-- only show when reason "shot" has been selected
 			for i,wpn in ipairs(weapon_names) do
@@ -330,7 +349,7 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 			
 			-- Create the headshot-checkbox
 			local headshot = vgui.Create("DCheckBoxLabel", panel)
-			headshot:SetPos(10,140)
+			headshot:SetPos(10,150)
 			headshot:SetText("Headshot")
 			headshot:SetChecked(false)
 			headshot:SetVisible(false)			-- same as weapons
@@ -350,46 +369,45 @@ function SWEP:SecondaryAttack() -- secondary attack opens up the configuration (
 			
 			-- Submit functionality
 			submit.DoClick = function()
+				local reasonValue = reasons:GetValue()
+				local reasonCode = nil
+				local weaponValue = weapons:GetValue()
+				local weaponCode = ""
+				local headshotValue = headshot:GetChecked()
+				local roleValue = false
+                                local screamValue = scream:GetChecked()
 				
-				local rea = reasons:GetValue()
-				local rec = nil
-				local wpn = weapons:GetValue()
-				local wpc = ""
-				local hsd = headshot:GetChecked()
-				local rle = false
-				
-				-- We have to translate the chosen Reason into the corresponding DMG_*
-				wpc = weapon_codes[PosInTable(weapon_names, wpn)]
+				-- We have to translate the chosen reasonValueson into the corresponding DMG_*
+				weaponCode = weapon_codes[PosInTable(weapon_names, weaponValue)]
 				
 				if (roles:GetValue() == "Innocent") then
-					rle = true
+					roleValue = true
 				end
 				
-				if (rea == "Fell from a significant height") then
-					rec = DMG_FALL
-				elseif (rea == "Burned to death") then
-					rec = DMG_DIRECT
-				elseif (rea == "Ripped apart by an explosion") then
-					rec = DMG_BLAST
-				elseif (rea == "Shot to death") then
-					rec = DMG_BULLET
-				elseif (rea == "Stabbed") then
-					rec = DMG_SLASH
-					wpc = "weapon_ttt_knife"
-				elseif (rea == "Drowned") then
-					rec = DMG_DROWN
-				elseif (rea == "Crushed by a heavy object") then
-					rec = DMG_CRUSH
+				if (reasonValue == "Fell from a significant height") then
+					reasonCode = DMG_FALL
+				elseif (reasonValue == "Burned to death") then
+					reasonCode = DMG_DIreasonCodeT
+				elseif (reasonValue == "Ripped apart by an explosion") then
+					reasonCode = DMG_BLAST
+				elseif (reasonValue == "Shot to death") then
+					reasonCode = DMG_BULLET
+				elseif (reasonValue == "Stabbed") then
+					reasonCode = DMG_SLASH
+					weaponCode = "weapon_ttt_knife"
+				elseif (reasonValue == "Drowned") then
+					reasonCode = DMG_DROWN
+				elseif (reasonValue == "Crushed by a heavy object") then
+					reasonCode = DMG_CRUSH
 				end
 				
-					-- We have to translate the chosen Weapon name into the corresponding class name
-
 				-- Now, to the sending part
 				net.Start("deathfakerconfig")
-					net.WriteInt(rec,32)
-					net.WriteString(wpc)
-					net.WriteBit(hsd)
-					net.WriteBit(rle)
+					net.WriteInt(reasonCode,32)
+					net.WriteString(weaponCode)
+					net.WriteBit(headshotValue)
+					net.WriteBit(roleValue)
+                                        net.WriteBit(screamValue)
 				net.SendToServer()
 				
 				menu_open = false
