@@ -30,13 +30,16 @@ SWEP.Primary.Recoil         = 4.50
 SWEP.Primary.Automatic      = false
 SWEP.Primary.SoundLevel     = 30
 
-CreateConVar("ttt_poisondart_ammo", 1, { FCVAR_REPLICATED, FCVAR_SERVER_CAN_EXECUTE, FCVAR_ARCHIVE }, "The amount of ammo a player gets when first purchasing the poison dart gun")
-
-local ammo = GetConVar("ttt_poisondart_ammo"):GetInt();
 SWEP.Primary.ClipSize       = 1
-SWEP.Primary.ClipMax        = ammo
-SWEP.Primary.DefaultClip    = ammo
-SWEP.Primary.Ammo           = "noammo"
+SWEP.Primary.DefaultClip    = 0 -- will be overwritten on spawn by ammo amount set in cvar
+local ammoname              = "poisondart-gun-ammo"
+SWEP.Primary.Ammo           = ammoname
+game.AddAmmoType( {
+    name = ammoname,
+    force = 0,
+    npcdmg = 0,
+    plydmg = 0
+})
 SWEP.HeadshotMultiplier     = 0
 
 SWEP.CanBuy                 = { ROLE_TRAITOR }
@@ -61,6 +64,17 @@ if SERVER then
     CreateConVar("ttt_poisondart_interval", 1, {}, "The amount of seconds between each damage tick of the poison"):GetInt()
     CreateConVar("ttt_poisondart_damage", 3, {}, "The amount of damage each tick of the poison deals"):GetInt()
     CreateConVar("ttt_poisondart_ticks", 34, {}, "The amount of ticks the poison lasts before wearing off"):GetInt()
+end
+CreateConVar("ttt_poisondart_ammo", 1, { FCVAR_REPLICATED, FCVAR_SERVER_CAN_EXECUTE}, "The amount of ammo a player gets when first purchasing the poison dart gun")
+
+function SWEP:WasBought(buyer)
+    if (SERVER) then
+        local desiredAmmo = GetConVar("ttt_poisondart_ammo"):GetInt();
+        if (desiredAmmo > 0) then
+            self.Weapon:SetClip1(1)
+            buyer:GiveAmmo(desiredAmmo - 1, self.Primary.Ammo, true)
+        end
+    end
 end
 
 function SWEP:Deploy()
