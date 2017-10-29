@@ -146,15 +146,18 @@ function SWEP:PrimaryAttack(worldsnd)
             victim.poisonDmgInfo:SetReportedPosition(victim:GetPos())
 
             timer.Create(timerName, poisonInterval, 0, function()
-                
-                -- only run as long as victim is alive, stop timer otherwise
-                local ticksPassed = victim.poisonticksPassed
-                if IsValid(victim) and victim:IsTerror() and victim:Alive() and (ticksPassed < poisonTicks) then
-                    victim:TakeDamageInfo(victim.poisonDmgInfo)
-                    victim.poisonticksPassed = victim.poisonticksPassed + 1
-                else
-                    victim:SetNWBool("poisondart_poisoned", false)
+                -- if stop flag has been set, destroy timer
+                if not victim:GetNWBool("poisondart_poisoned", false) then
                     timer.Destroy(timerName)
+                else
+                    -- only run as long as victim is alive, stop timer otherwise
+                    local ticksPassed = victim.poisonticksPassed
+                    if IsValid(victim) and victim:IsTerror() and victim:Alive() and (ticksPassed < poisonTicks) then
+                        victim:TakeDamageInfo(victim.poisonDmgInfo)
+                        victim.poisonticksPassed = victim.poisonticksPassed + 1
+                    else
+                        victim:SetNWBool("poisondart_poisoned", false)
+                    end
                 end
             end)
         end
@@ -202,10 +205,15 @@ if CLIENT then
     end)
 end
 
--- remove any poison effects on player death
+-- remove any poison effects on player death or round start
 if SERVER then
     hook.Add("PostPlayerDeath", "poisondart_unpoison_on_death", function(ply, infl, att)
         ply:SetNWBool("poisondart_poisoned", false)
+    end)
+    hook.Add("TTTPrepareRound", "poisondart_unpoison_on_prepare", function()
+        for i, j in pairs(player.GetAll()) do
+            j:SetNWBool("poisondart_poisoned", false)
+        end
     end)
 end
 
